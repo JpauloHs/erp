@@ -1,0 +1,179 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: uid
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - firstName: string (optional)
+    //   - lastName: string (optional)
+    //   - email: string (required, email format)
+    //   - bio: string (optional)
+    //   - role: string (required, enum: ["admin", "user"])
+    //   - organization: map (optional)
+    //
+    // Collection: inventory
+    // Document ID: productId
+    // Fields:
+    //   - sku: string (required)
+    //   - name: string (required)
+    //   - category: string (required)
+    //   - price: number (required, positive)
+    //   - stock: integer (required, positive)
+    //   - status: string (required, enum: ["In Stock", "Low Stock", "Out of Stock"])
+    //
+    // Collection: customers
+    // Document ID: customerId
+    // Fields:
+    //   - name: string (required)
+    //   - email: string (required, email format)
+    //   - phone: string (optional)
+    //   - location: string (optional)
+    //   - status: string (required, enum: ["Active", "Inactive"])
+    //   - orders: integer (required, positive)
+    //
+    // Collection: sales
+    // Document ID: orderId
+    // Fields:
+    //   - orderId: string (required)
+    //   - customer: string (required)
+    //   - date: timestamp (required)
+    //   - total: number (required, positive)
+    //   - status: string (required, enum: ["Completed", "Processing", "Pending", "Cancelled"])
+    //   - items: integer (required, positive)
+    //
+    // Collection: transactions
+    // Document ID: txnId
+    // Fields:
+    //   - txnId: string (required)
+    //   - date: timestamp (required)
+    //   - description: string (required)
+    //   - category: string (required)
+    //   - amount: number (required)
+    //   - type: string (required, enum: ["Income", "Expense"])
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "jaoalmeida02@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'role']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'user'] &&
+             (!('firstName' in data) || (data.firstName is string && data.firstName.size() < 100)) &&
+             (!('lastName' in data) || (data.lastName is string && data.lastName.size() < 100)) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() < 1000));
+    }
+
+    function isValidProduct(data) {
+      return hasRequiredFields(['sku', 'name', 'category', 'price', 'stock', 'status']) &&
+             data.sku is string && data.sku.size() > 0 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.category is string &&
+             data.price is number && data.price >= 0 &&
+             data.stock is int && data.stock >= 0 &&
+             data.status in ["In Stock", "Low Stock", "Out of Stock"];
+    }
+
+    function isValidCustomer(data) {
+      return hasRequiredFields(['name', 'email', 'status', 'orders']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.status in ["Active", "Inactive"] &&
+             data.orders is int && data.orders >= 0;
+    }
+
+    function isValidSalesOrder(data) {
+      return hasRequiredFields(['orderId', 'customer', 'date', 'total', 'status', 'items']) &&
+             data.orderId is string &&
+             data.customer is string &&
+             data.date is timestamp &&
+             data.total is number && data.total >= 0 &&
+             data.status in ["Completed", "Processing", "Pending", "Cancelled"] &&
+             data.items is int && data.items >= 0;
+    }
+
+    function isValidTransaction(data) {
+      return hasRequiredFields(['txnId', 'date', 'description', 'category', 'amount', 'type']) &&
+             data.txnId is string &&
+             data.date is timestamp &&
+             data.description is string && data.description.size() < 500 &&
+             data.category is string &&
+             data.amount is number &&
+             data.type in ["Income", "Expense"];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) && request.resource.data.role == 'user' || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) && request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /inventory/{productId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /customers/{customerId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /sales/{orderId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /transactions/{txnId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

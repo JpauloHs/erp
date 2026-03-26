@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "bio": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "organization": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "address": { "type": "string" }
+          }
+        }
+      },
+      "required": ["uid", "email"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Inventory item",
+      "type": "object",
+      "properties": {
+        "sku": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "price": { "type": "number" },
+        "stock": { "type": "integer" },
+        "status": { "type": "string", "enum": ["In Stock", "Low Stock", "Out of Stock"] }
+      },
+      "required": ["sku", "name", "price", "stock"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "CRM customer record",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "location": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "orders": { "type": "integer" }
+      },
+      "required": ["name", "email"]
+    },
+    "SalesOrder": {
+      "title": "SalesOrder",
+      "description": "Sales order record",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "customer": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "total": { "type": "number" },
+        "status": { "type": "string", "enum": ["Completed", "Processing", "Pending", "Cancelled"] },
+        "items": { "type": "integer" }
+      },
+      "required": ["orderId", "customer", "date", "total", "status"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial transaction",
+      "type": "object",
+      "properties": {
+        "txnId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["Income", "Expense"] }
+      },
+      "required": ["txnId", "date", "description", "amount", "type"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/inventory/{productId}": {
+      "schema": "Product",
+      "description": "Inventory collection"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "CRM collection"
+    },
+    "/sales/{orderId}": {
+      "schema": "SalesOrder",
+      "description": "Sales orders collection"
+    },
+    "/transactions/{txnId}": {
+      "schema": "Transaction",
+      "description": "Financial transactions collection"
+    }
+  }
+}
